@@ -1,0 +1,5 @@
+Options -Indexes
+RewriteEngine on
+
+RewriteRule ^scrape index.php?action=scrape [L,QSA]
+RewriteRule ^announce index.php?action=announce [L,QSA]
