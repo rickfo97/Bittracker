@@ -1,0 +1,6 @@
+Site/app/vendor/**
+Site/app/cache/**
+Site/app/composer.lock
+.idea
+*.dia~
+composer.phar

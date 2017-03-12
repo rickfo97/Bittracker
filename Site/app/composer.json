@@ -1,0 +1,6 @@
+{
+    "require": {
+        "twig/twig": "~2.0",
+        "filp/whoops": "^2.1"
+    }
+}
