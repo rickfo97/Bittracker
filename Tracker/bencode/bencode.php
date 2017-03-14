@@ -1,21 +1,16 @@
 <?php
+class Bencode
+{
 
-/**
- * Created by PhpStorm.
- * User: Rickardh
- * Date: 2017-03-04
- * Time: 14:23
- */
-class Bencode{
-
-    public static function build($input){
-        if(is_int($input)){
+    public static function build($input)
+    {
+        if (is_int($input)) {
             return self::makeInt($input);
         }
-        if (is_string($input)){
+        if (is_string($input)) {
             return self::makeString($input);
         }
-        if (is_array($input)){
+        if (is_array($input)) {
             if (self::isDictionary($input)) {
                 return self::makeDictionary($input);
             } else {
@@ -25,21 +20,24 @@ class Bencode{
     }
 
     // TODO
-    public static function decode($input){
-
+    public static function decode($input)
+    {
     }
 
-    private static function makeString($string){
+    private static function makeString($string)
+    {
         return strlen($string) . ':' . $string;
     }
 
-    private static function makeInt($int){
-        if(is_int($int)){
+    private static function makeInt($int)
+    {
+        if (is_int($int)) {
             return 'i' . $int . 'e';
         }
     }
 
-    private static function makeList($list){
+    private static function makeList($list)
+    {
         $retString = 'l';
         foreach ($list as $item) {
             if (is_array($item)) {
@@ -54,7 +52,7 @@ class Bencode{
                 $retString .= self::makeInt($item);
                 continue;
             }
-            if (is_string($item)){
+            if (is_string($item)) {
                 $retString .= self::makeString($item);
                 continue;
             }
@@ -62,7 +60,8 @@ class Bencode{
         return $retString .= 'e';
     }
 
-    private static function makeDictionary($dictionary){
+    private static function makeDictionary($dictionary)
+    {
         $retString = 'd';
         foreach ($dictionary as $key => $item) {
             $retString .= self::makeString($key);
@@ -78,7 +77,7 @@ class Bencode{
                 $retString .= self::makeInt($item);
                 continue;
             }
-            if (is_string($item)){
+            if (is_string($item)) {
                 $retString .= self::makeString($item);
                 continue;
             }
@@ -86,10 +85,11 @@ class Bencode{
         return $retString .= 'e';
     }
 
-    private static function isDictionary($dictionary){
+    private static function isDictionary($dictionary)
+    {
         $i = 0;
-        foreach ($dictionary as $key => $item){
-            if($key !== $i++){
+        foreach ($dictionary as $key => $item) {
+            if ($key !== $i++) {
                 return true;
             }
         }
