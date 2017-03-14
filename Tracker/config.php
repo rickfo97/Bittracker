@@ -1,11 +1,6 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: Rickardh
- * Date: 2017-03-04
- * Time: 21:15
- */
-class Config{
+class Config
+{
 
     private static $config = array(
         'db_driver' => 'mysql',
@@ -26,8 +21,9 @@ class Config{
         'time_format' => 'Y-m-d H:i:s'
     );
 
-    public static function get($key){
-        if (key_exists($key, self::$config)){
+    public static function get($key)
+    {
+        if (key_exists($key, self::$config)) {
             return self::$config[$key];
         }
     }
