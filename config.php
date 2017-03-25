@@ -14,7 +14,7 @@ class Config{
         'db_user' => 'root',
         'db_password' => '',
 
-        'numwant_max' => 200,
+        'numwant_max' => 100,
         'announce_interval' => (90 * 60),
         'announce_interval_min' => (60 * 60),
         'open_track' => true,

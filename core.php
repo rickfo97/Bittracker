@@ -64,8 +64,13 @@ class Core{
             return $this->announceError('Invalid peerid: peerid is not 20 bytes long.');
         }
         if(intval($request['numwant']) > Config::get('numwant_max')){
-            Log::error('sent invalud numwant: ' . $request['numwant']);
-            return $this->announceError('Invalid numwant. Client requested more peers than allowed by tracker.');
+            if (Config::get('numwant_max_force')){
+                Log::error('sent invalid numwant: ' . $request['numwant']);
+                return $this->announceError('Invalid numwant. Client requested more peers than allowed by tracker.');
+            }else{
+                Log::warning('sent invalid numwant: ' . $request['numwant']);
+                $request['numwant'] = Config::get('numwant_max');
+            }
         }
         if(!Config::get('open_track')){
             if(!$this->torrentExits($request['info_hash'])){
@@ -132,7 +137,7 @@ class Core{
     }
 
     private function torrentExits($info_hash){
-        $result = $this->dbc->query("SELECT *FROM Torrent WHERE info_hash = " . $this->dbc->quote($info_hash));
+        $result = $this->dbc->query("SELECT *FROM Torrent WHERE banned = 0 AND info_hash = " . $this->dbc->quote($info_hash));
         if($result->rowCount() == 1){
             return true;
         }
