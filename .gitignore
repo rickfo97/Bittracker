@@ -1,4 +1,5 @@
 .idea
 *.dia~
 log.txt
-config.dev.php
+config.ini
+vendor/

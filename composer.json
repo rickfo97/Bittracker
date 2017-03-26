@@ -1,0 +1,22 @@
+{
+  "name": "rickfo97/bittracker",
+  "type": "project",
+  "description" :"Bittorrent tracker ",
+  "authors": [
+    {
+      "name": "Rickardh Forslund",
+      "role": "Developer"
+    },
+    {
+      "name": "Hannes Kindströmmer",
+      "email": "hannes@kindstrommer.se",
+      "homepage": "http://kindstrommer.se",
+      "role": "Developer"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Rickfo97\\Bittracker\\": "src"
+    }
+  }
+}
