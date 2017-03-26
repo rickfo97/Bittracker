@@ -70,7 +70,7 @@ class Core
             }
         }
         if (!Config::get('open_track')) {
-            if (!$this->torrentExits($request['info_hash'])) {
+            if (!$this->torrentExists($request['info_hash'])) {
                 Log::getDefaultLogger()->error('open_track is false');
                 return $this->announceError('info_hash not found in the database.');
             }
@@ -134,8 +134,7 @@ class Core
         $response = BEncode::build($_GET['info_hash']) . BEncode::build($this->torrentStats($_GET['info_hash']));
         return $response;
     }
-    //TODO: Fix typo
-    private function torrentExits($info_hash){
+    private function torrentExists($info_hash){
         $result = $this->dbc->query("SELECT *FROM Torrent WHERE banned = 0 AND info_hash = " . $this->dbc->quote($info_hash));
         if($result->rowCount() == 1){
             return true;
