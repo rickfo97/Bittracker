@@ -1,5 +1,7 @@
 <?php
-class Bencode
+namespace Rickfo97\Bittracker\Core;
+
+class BEncode
 {
 
     public static function build($input)
