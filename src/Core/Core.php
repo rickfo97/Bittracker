@@ -15,9 +15,9 @@ class Core
 
     public function announce()
     {
-        Log::write('announcing ' . $_GET['info_hash']);
+        Log::getDefaultLogger()->info('announcing ' . $_GET['info_hash']);
         if ($_SERVER['REQUEST_METHOD'] != 'GET') {
-            Log::error('request method was not GET');
+            Log::getDefaultLogger()->error('request method was not GET');
             return $this->announceError('Invalid request type: client request was not a HTTP GET.');
         }
 
@@ -41,37 +41,37 @@ class Core
             'torrent_pass' => $_GET['torrent_pass']
         );
         if (!isset($request['info_hash'])) {
-            Log::error('missing info_hash');
+            Log::getDefaultLogger()->error('missing info_hash');
             return $this->announceError('Missing info_hash.');
         }
         if (!isset($request['peer_id'])) {
-            Log::error('missing peer_id');
+            Log::getDefaultLogger()->error('missing peer_id');
             return $this->announceError('Missing peer_id.');
         }
         if (!isset($request['port'])) {
-            Log::error('missing port');
+            Log::getDefaultLogger()->error('missing port');
             return $this->announceError('Missing port.');
         }
         if (strlen($request['info_hash']) != 20) {
-            Log::error('sent invalid info_hash: ' . $request['info_hash']);
+            Log::getDefaultLogger()->error('sent invalid info_hash: ' . $request['info_hash']);
             return $this->announceError('Invalid infohash: infohash is not 20 bytes long.');
         }
         if (strlen($request['peer_id']) != 20) {
-            Log::error('sent invalid peer_id: ' . $request['peer_id']);
+            Log::getDefaultLogger()->error('sent invalid peer_id: ' . $request['peer_id']);
             return $this->announceError('Invalid peerid: peerid is not 20 bytes long.');
         }
         if(intval($request['numwant']) > Config::get('numwant_max')){
             if (Config::get('numwant_max_force')){
-                Log::error('sent invalid numwant: ' . $request['numwant']);
+                Log::getDefaultLogger()->error('sent invalid numwant: ' . $request['numwant']);
                 return $this->announceError('Invalid numwant. Client requested more peers than allowed by tracker.');
             }else{
-                Log::warning('sent invalid numwant: ' . $request['numwant']);
+                Log::getDefaultLogger()->warning('sent invalid numwant: ' . $request['numwant']);
                 $request['numwant'] = Config::get('numwant_max');
             }
         }
         if (!Config::get('open_track')) {
             if (!$this->torrentExits($request['info_hash'])) {
-                Log::error('open_track is false');
+                Log::getDefaultLogger()->error('open_track is false');
                 return $this->announceError('info_hash not found in the database.');
             }
         }
@@ -94,9 +94,9 @@ class Core
         $peerAdd = $this->dbc->prepare($peerAddSQL);
         $result = $peerAdd->execute($peerAddParams);
         if (!$result) {
-            Log::warning("Failed to add peer: " . $peerAdd->errorCode() . ' - ' . $peerAdd->errorInfo()[2]);
-            Log::error($peerAddSQL);
-            Log::error('ip: ' . $request['ip'] . '; port: ' . $request['port'] . '; downloaded: ' . $request['downloaded'] . '; uploaded: ' . $request['uploaded'] . '; bytes_left: ' . $request['left'] . '; event: ' . $request['event']);
+            Log::getDefaultLogger()->warning("Failed to add peer: " . $peerAdd->errorCode() . ' - ' . $peerAdd->errorInfo()[2]);
+            Log::getDefaultLogger()->error($peerAddSQL);
+            Log::getDefaultLogger()->error('ip: ' . $request['ip'] . '; port: ' . $request['port'] . '; downloaded: ' . $request['downloaded'] . '; uploaded: ' . $request['uploaded'] . '; bytes_left: ' . $request['left'] . '; event: ' . $request['event']);
         }
 
         $peerSQL = "SELECT ";
@@ -108,8 +108,8 @@ class Core
         $peerStmt = $this->dbc->prepare($peerSQL);
         $peerResult = $peerStmt->execute(array(':info_hash' => $request['info_hash'], ':peer_id' => $request['peer_id']));
         if (!$peerResult) {
-            Log::warning('Failed to fetch peers: ' . $peerStmt->errorCode() . ' - ' . $peerStmt->errorInfo()[2]);
-            Log::error($peerSQL);
+            Log::getDefaultLogger()->warning('Failed to fetch peers: ' . $peerStmt->errorCode() . ' - ' . $peerStmt->errorInfo()[2]);
+            Log::getDefaultLogger()->error($peerSQL);
         }
 
         $response = array('interval' => Config::get('announce_interval'), 'min interval' => Config::get('announce_interval_min'));
@@ -124,13 +124,13 @@ class Core
         }
         $response = array_merge($response, $this->torrentStats($request['info_hash']));
         $bResponse = BEncode::build($response);
-        Log::write('Announce response: ' . $bResponse);
+        Log::getDefaultLogger()->info('Announce response: ' . $bResponse);
         return $bResponse;
     }
 
     public function scrape()
     {
-        Log::write('scrapeing: ' . $_GET['info_hash']);
+        Log::getDefaultLogger()->info('scrapeing: ' . $_GET['info_hash']);
         $response = BEncode::build($_GET['info_hash']) . BEncode::build($this->torrentStats($_GET['info_hash']));
         return $response;
     }
