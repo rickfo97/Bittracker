@@ -1,7 +1,8 @@
 <?php
 
-include_once 'bencode/bencode.php';
-include_once 'config.php';
+namespace Rickfo97\Bittracker\Core;
+use Rickfo97\Bittracker\Logger\Log;
+
 class Core
 {
 
@@ -122,7 +123,7 @@ class Core
             $response['peers'] = $peerStmt->fetchAll();
         }
         $response = array_merge($response, $this->torrentStats($request['info_hash']));
-        $bResponse = Bencode::build($response);
+        $bResponse = BEncode::build($response);
         Log::write('Announce response: ' . $bResponse);
         return $bResponse;
     }
@@ -130,10 +131,10 @@ class Core
     public function scrape()
     {
         Log::write('scrapeing: ' . $_GET['info_hash']);
-        $response = Bencode::build($_GET['info_hash']) . Bencode::build($this->torrentStats($_GET['info_hash']));
+        $response = BEncode::build($_GET['info_hash']) . BEncode::build($this->torrentStats($_GET['info_hash']));
         return $response;
     }
-    
+    //TODO: Fix typo
     private function torrentExits($info_hash){
         $result = $this->dbc->query("SELECT *FROM Torrent WHERE banned = 0 AND info_hash = " . $this->dbc->quote($info_hash));
         if($result->rowCount() == 1){
@@ -152,6 +153,6 @@ class Core
 
     private function announceError($message)
     {
-        return Bencode::build(array('failure reason' => $message));
+        return BEncode::build(array('failure reason' => $message));
     }
 }

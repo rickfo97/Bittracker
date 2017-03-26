@@ -1,5 +1,6 @@
 <?php
-include_once '../config.php';
+namespace Rickfo97\Bittracker\Logger;
+use Rickfo97\Bittracker\Core\Config;
 
 class Log
 {
