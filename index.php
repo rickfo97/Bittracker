@@ -1,5 +1,5 @@
 <?php
-
+require_once('vendor/autoload.php');
 ignore_user_abort(true);
 //ini_set('display_errors', 1);
 //error_reporting(E_ALL);
