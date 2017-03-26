@@ -2,3 +2,4 @@
 *.dia~
 log.txt
 config.dev.php
+/vendor/
