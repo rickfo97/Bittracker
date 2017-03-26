@@ -21,9 +21,61 @@ class BEncode
         }
     }
 
-    // TODO
-    public static function decode($input)
+    public static function decode($input, &$i = 0)
     {
+        switch ($input[$i]){
+            case 'd':
+                $dictionary = array();
+                while (isset($input[++$i])){
+                    if($input[$i] == 'e'){
+                        return $dictionary;
+                    }else{
+                        $key = self::decode($input, $i);
+                        if(isset($input[++$i])){
+                            $dictionary[$key] = self::decode($input, $i);
+                        }
+                    }
+                }
+            case 'l':
+                $list = array();
+                while (isset($input[++$i])){
+                    if($input[$i] == 'e'){
+                        return $list;
+                    }else{
+                        $list[] = self::decode($input, $i);
+                    }
+                }
+            case 'i':
+                $intBuffer = "";
+                while (isset($input[++$i])){
+                    if($input[$i] == 'e'){
+                        return intval($intBuffer);
+                    }elseif(ctype_digit($input[$i])){
+                        $intBuffer .= $input[$i];
+                    }else{
+                        echo 'int didn\'t end?';
+                    }
+                }
+            case ctype_digit($input[$i]):
+                $length = $input[$i];
+                while (isset($input[++$i])){
+                    if($input[$i] == ':'){
+                        break;
+                    }elseif(ctype_digit($input[$i])){
+                        $length .= $input[$i];
+                    }
+                }
+                $stop = $i + intval($length);
+                $string = "";
+                while (isset($input[++$i])){
+                    if($i <= $stop){
+                        $string .= $input[$i];
+                        if ($i == $stop){
+                            return $string;
+                        }
+                    }
+                }
+        }
     }
 
     private static function makeString($string)
