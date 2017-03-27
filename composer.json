@@ -18,5 +18,8 @@
     "psr-4": {
       "Rickfo97\\Bittracker\\": "src"
     }
+  },
+  "require": {
+    "psr/log": "^1.0"
   }
 }
