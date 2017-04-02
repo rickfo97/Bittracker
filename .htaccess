@@ -3,3 +3,5 @@ RewriteEngine on
 
 RewriteRule ^scrape index.php?action=scrape [L,QSA]
 RewriteRule ^announce index.php?action=announce [L,QSA]
+RewriteRule ^(.+)\/scrape index.php?action=scrape&torrent_pass=$1 [L,QSA]
+RewriteRule ^(.+)\/announce index.php?action=announce&torrent_pass=$1 [L,QSA]

@@ -10,10 +10,10 @@ $core = new Core();
 
 switch ($_GET['action']) {
     case 'announce':
-        $core->announce();
+        echo $core->announce();
         break;
     case 'scrape':
-        $core->scrape();
+        echo $core->scrape();
         break;
     default:
         echo 'no action found';
