@@ -8,11 +8,18 @@ class Config
     private static $config;
     private static $configFile;
 
+    public static function set($config)
+    {
+        self::load();
+        foreach ($config as $key => $value){
+            self::$config[$key] = $value;
+        }
+    }
+
     public static function get($key)
     {
         if(is_null(self::$config)){
-            self::$configFile = file_exists('config.ini') ? 'config.ini' : 'config.example.ini';
-            self::$config = parse_ini_file(self::$configFile, false, INI_SCANNER_TYPED);
+            self::load();
         }
         if (key_exists($key, self::$config)) {
             return self::$config[$key];
@@ -22,14 +29,21 @@ class Config
     public static function change($key, $value)
     {
         if(is_null(self::$config)){
-            self::$configFile = file_exists('config.ini') ? 'config.ini' : 'config.example.ini';
-            self::$config = parse_ini_file(self::$configFile, false, INI_SCANNER_TYPED);
+            self::load();
         }
         if (key_exists($key, self::$config)) {
             self::$config[$key] = $value;
             return true;
         }
         return false;
+    }
+
+    private static function load()
+    {
+        if(is_null(self::$config)){
+            self::$configFile = file_exists(__DIR__ . '/../../config.ini.php') ? __DIR__ . '/../../config.ini.php' : __DIR__ . '/../../config.example.ini.php';
+            self::$config = parse_ini_file(self::$configFile, false, INI_SCANNER_TYPED);
+        }
     }
 
     public static function save()

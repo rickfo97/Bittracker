@@ -4,19 +4,22 @@ namespace Rickfo97\Bittracker\Core;
 
 use Rickfo97\Bittracker\Logger\Log;
 
-class Core
+class Tracker
 {
 
     private $dbc;
 
-    public function __construct()
+    public function __construct($settings = [])
     {
         $this->dbc = new Database();
+        if(sizeof($settings) > 0){
+            Config::set($settings);
+        }
     }
 
     public function announce()
     {
-        Log::getDefaultLogger()->info('announcing ' . $_GET['info_hash']);
+        Log::getDefaultLogger()->debug('announcing ' . bin2hex($_GET['info_hash']));
 
         if ($_SERVER['REQUEST_METHOD'] != 'GET') {
             Log::getDefaultLogger()->error('request method was not GET');
@@ -76,7 +79,7 @@ class Core
                 Log::getDefaultLogger()->debug("Not a member of tracker: " . $request['torrent_pass']);
                 return $this->announceError("Not a member of tracker");
             } else {
-                $member = $this->dbc->prepare("SELECT *FROM User WHERE torrent_pass = :torrent_pass");
+                $member = $this->dbc->prepare("SELECT *FROM tracker_User WHERE torrent_pass = :torrent_pass");
                 $member->execute([':torrent_pass' => $request['torrent_pass']]);
                 if ($member->rowCount() != 1) {
                     Log::getDefaultLogger()->debug("Not a member of tracker: " . $request['torrent_pass']);
@@ -90,13 +93,13 @@ class Core
                 return $this->announceError('info_hash not found in the database.');
             }
         }
-        if (Config::get('ratio_limit') && !$this->freeLeech($request['info_hash'])) {
+        if (Config::get('ratio_limit') && (!$this->freeLeech($request['info_hash']) && $request['left'] > 0)) {
             $ratio_stmt = null;
             if (isset($request['torrent_pass'])) {
-                $ratio_stmt = $this->dbc->prepare("SELECT COALESCE ((upload / download), -1) as ratio, created FROM User WHERE torrent_pass = :torrent_pass");
+                $ratio_stmt = $this->dbc->prepare("SELECT COALESCE ((upload / download), -1) as ratio, created FROM " . Config::get('db_prefix') . "User WHERE torrent_pass = :torrent_pass");
                 $ratio_stmt->execute([':torrent_pass' => $request['torrent_pass']]);
             } elseif (!Config::get('private')) {
-                $ratio_stmt = $this->dbc->prepare("SELECT (SUM(bytes_uploaded) / SUM(bytes_downloaded)) as ratio FROM Peer WHERE peer_id = :peer_id AND ip = :ip");
+                $ratio_stmt = $this->dbc->prepare("SELECT (SUM(bytes_uploaded) / SUM(bytes_downloaded)) as ratio FROM " . Config::get('db_prefix') . "Peer WHERE peer_id = :peer_id AND ip = :ip");
                 $ratio_stmt->execute([':peer_id' => $request['peer_id'], ':ip' => $request['ip']]);
             }
             if ($ratio_stmt->rowCount() == 1) {
@@ -114,7 +117,6 @@ class Core
                 }
             }
         }
-
         if (!Config::get('save_stats') && $request['event'] == 'stopped') {
             $removeStmt = $this->dbc->prepare("DELETE FROM Peer WHERE info_hash = :info_hash AND peer_id = :peer_id");
             $success = $removeStmt->execute([
@@ -127,7 +129,7 @@ class Core
             die();
         }
 
-        $peerAddSQL = "INSERT INTO `Peer`(`info_hash`, `peer_id`, `ip`, `port`, compact, `bytes_downloaded`, `bytes_uploaded`, `bytes_left`, status, expires, torrent_pass) VALUES (:info_hash, :peer_id, :ip, :port, :compact, :downloaded, :uploaded, :bytes_left, IFNULL(:status, DEFAULT(status)), DATE_ADD(NOW(), INTERVAL " . Config::get('expire_interval') . "), :torrent_pass) ON DUPLICATE KEY UPDATE ip = :ip, port = :port, compact = :compact, `bytes_downloaded` = :downloaded, `bytes_uploaded` = :uploaded, `bytes_left` = :bytes_left, status = " . (isset($request['event']) == true ? ':status' : 'status') . ", `expires` = DATE_ADD(NOW(), INTERVAL " . Config::get('expire_interval') . "), torrent_pass = :torrent_pass";
+        $peerAddSQL = "INSERT INTO `" . Config::get('db_prefix') . "Peer`(`info_hash`, `peer_id`, `ip`, `port`, compact, `bytes_downloaded`, `bytes_uploaded`, `bytes_left`, status, expires, torrent_pass) VALUES (:info_hash, :peer_id, :ip, :port, :compact, :downloaded, :uploaded, :bytes_left, IFNULL(:status, DEFAULT(status)), DATE_ADD(NOW(), INTERVAL " . Config::get('expire_interval') . "), :torrent_pass) ON DUPLICATE KEY UPDATE ip = :ip, port = :port, compact = :compact, `bytes_downloaded` = :downloaded, `bytes_uploaded` = :uploaded, `bytes_left` = :bytes_left, status = " . (isset($request['event']) == true ? ':status' : 'status') . ", `expires` = DATE_ADD(NOW(), INTERVAL " . Config::get('expire_interval') . "), torrent_pass = :torrent_pass";
         $peerAddParams = array(
             ':info_hash' => $request['info_hash'],
             ':peer_id' => $request['peer_id'],
@@ -145,19 +147,19 @@ class Core
         $result = $peerAdd->execute($peerAddParams);
         if (!$result) {
             Log::getDefaultLogger()->warning("Failed to add peer: " . $peerAdd->errorCode() . ' - ' . $peerAdd->errorInfo()[2]);
-            Log::getDefaultLogger()->error($peerAddSQL);
-            Log::getDefaultLogger()->error('ip: ' . $request['ip'] . '; port: ' . $request['port'] . '; downloaded: ' . $request['downloaded'] . '; uploaded: ' . $request['uploaded'] . '; bytes_left: ' . $request['left'] . '; event: ' . $request['event']);
+            Log::getDefaultLogger()->debug($peerAddSQL);
+            Log::getDefaultLogger()->debug('ip: ' . $request['ip'] . '; port: ' . $request['port'] . '; downloaded: ' . $request['downloaded'] . '; uploaded: ' . $request['uploaded'] . '; bytes_left: ' . $request['left'] . '; event: ' . $request['event']);
         }
 
         if ($request[':status'] == 'finished') {
-            $downloadStmt = $this->dbc->prepare("INSERT INTO Torrent(info_hash, complete) VALUES(:info_hash, 1) ON DUPLICATE KEY UPDATE complete = (complete + 1)");
+            $downloadStmt = $this->dbc->prepare("INSERT INTO " . Config::get('db_prefix') . "Torrent(info_hash, complete) VALUES(:info_hash, 1) ON DUPLICATE KEY UPDATE complete = (complete + 1)");
             $result = $downloadStmt->execute([':info_hash' => $request['info_hash']]);
             if (!$result) {
                 Log::getDefaultLogger()->error("Failed to add completed downloads");
             }
         }
 
-        $peerSQL = "SELECT " . (!$request['no_peer_id'] ? "peer_id as id, " : '') . "ip, port, compact FROM `Peer` WHERE info_hash = :info_hash AND peer_id != :peer_id AND status != 'stopped' AND expires >= NOW() LIMIT " . $request['numwant'];
+        $peerSQL = "SELECT " . (!$request['no_peer_id'] ? "peer_id as id, " : '') . "ip, port, compact FROM `" . Config::get('db_prefix') . "Peer` WHERE info_hash = :info_hash AND peer_id != :peer_id AND status != 'stopped' AND expires >= NOW() LIMIT " . $request['numwant'];
         $peerStmt = $this->dbc->prepare($peerSQL);
         $peerResult = $peerStmt->execute(array(':info_hash' => $request['info_hash'], ':peer_id' => $request['peer_id']));
         if (!$peerResult) {
@@ -187,11 +189,11 @@ class Core
         $response = "";
         if (Config::get('full_scrape') && !isset($_GET['info_hash'])) {
             Log::getDefaultLogger()->info($_SERVER['REMOTE_ADDR'] . " is performing a full scrape");
-            $response = BEncode::build($this->dbc->query("SELECT *FROM Torrent_stats", \PDO::FETCH_ASSOC));
+            $response = BEncode::build($this->dbc->query("SELECT info_hash, seed, leech, complete FROM " . Config::get('db_prefix') . "Torrent", \PDO::FETCH_ASSOC));
         } else {
             Log::getDefaultLogger()->debug('scrapeing: ' . bin2hex($_GET['info_hash']));
             $stats = $this->torrentStats($_GET['info_hash']);
-            Log::getDefaultLogger()->debug("Scrape stats: " . $stats[0] . " : " . $stats[1]);
+            Log::getDefaultLogger()->debug("Scrape stats: ", $stats);
             $response = BEncode::build(['files' => [$_GET['info_hash'] => $stats]]);
         }
         Log::getDefaultLogger()->debug($response);
@@ -201,7 +203,7 @@ class Core
 
     private function torrentExists($info_hash)
     {
-        $result = $this->dbc->query("SELECT *FROM Torrent WHERE banned = 0 AND info_hash = " . $this->dbc->quote($info_hash));
+        $result = $this->dbc->query("SELECT *FROM " . Config::get('db_prefix') . "Torrent WHERE banned = 0 AND info_hash = " . $this->dbc->quote($info_hash));
         if ($result->rowCount() == 1) {
             return true;
         }
@@ -210,7 +212,7 @@ class Core
 
     private function freeLeech($info_hash)
     {
-        $torrent = $this->dbc->prepare("SELECT free_leech FROM Torrent WHERE info_hash = :info_hash");
+        $torrent = $this->dbc->prepare("SELECT free_leech FROM " . Config::get('db_prefix') . "Torrent WHERE info_hash = :info_hash");
         $torrent->execute([':info_hash' => $info_hash]);
         if ($torrent->rowCount() == 1) {
             return $torrent->fetchObject()->free_leech;
@@ -220,7 +222,7 @@ class Core
 
     private function torrentStats($info_hash)
     {
-        $result = $this->dbc->prepare("SELECT COALESCE (complete, 0) as seed, COALESCE (incomplete, 0) as leech FROM Torrent_stats WHERE info_hash = :info_hash");
+        $result = $this->dbc->prepare("SELECT COALESCE (seed, 0) as seed, COALESCE (leech, 0) as leech FROM " . Config::get('db_prefix') . "Torrent WHERE info_hash = :info_hash");
         $result->execute([':info_hash' => $info_hash]);
         $stats = [];
         if ($result->rowCount() == 1) {
@@ -234,19 +236,34 @@ class Core
         return array('complete' => intval($stats['seed']), 'incomplete' => intval($stats['leech']));
     }
 
-    private function updateStats($info_hash)
+    public function updateStats($info_hash)
     {
-        $addStats = $this->dbc->prepare("INSERT INTO Torrent_stats(info_hash, complete, incomplete, downloaded) SELECT stats.info_hash, stats.complete, stats.incomplete, stats.downloaded FROM (SELECT Peer.info_hash, COALESCE(SUM((CASE WHEN ((status = 'completed') OR (status = 'started' AND bytes_left = 0)) AND expires >= NOW() THEN 1 END)),0) as complete, COALESCE(SUM((CASE WHEN (status = 'started' AND bytes_left > 0) AND expires >= NOW() THEN 1 END)), 0) as incomplete, Torrent.complete as downloaded FROM `Peer` LEFT JOIN Torrent ON Torrent.info_hash = Peer.info_hash WHERE Peer.expires >= NOW() AND Peer.status != 'stopped' AND Peer.info_hash = :info_hash GROUP BY info_hash) as stats ON DUPLICATE KEY UPDATE complete = stats.complete, incomplete = stats.incomplete, downloaded = stats.downloaded");
+        $addStats = $this->dbc->prepare("INSERT INTO " . Config::get('db_prefix') . "Torrent(info_hash, seed, leech) SELECT stats.info_hash, stats.complete, stats.incomplete FROM (SELECT " . Config::get('db_prefix') . "Peer.info_hash, COALESCE(SUM((CASE WHEN ((status = 'completed') OR (status = 'started' AND bytes_left = 0)) AND expires >= NOW() THEN 1 END)),0) as complete, COALESCE(SUM((CASE WHEN (status = 'started' AND bytes_left > 0) AND expires >= NOW() THEN 1 END)), 0) as incomplete FROM `" . Config::get('db_prefix') . "Peer` WHERE " . Config::get('db_prefix') . "Peer.expires >= NOW() AND " . Config::get('db_prefix') . "Peer.status != 'stopped' AND " . Config::get('db_prefix') . "Peer.info_hash = :info_hash GROUP BY info_hash) as stats ON DUPLICATE KEY UPDATE seed = stats.complete, leech = stats.incomplete");
         $success = $addStats->execute([
             ':info_hash' => $info_hash
         ]);
         if (!$success) {
-            Log::getDefaultLogger()->error("Failed to add torrent_stats: " . $addStats->errorCode() . ' - ' . $addStats->errorInfo()[2]);
+            Log::getDefaultLogger()->error("Failed to add torrent stats: " . $addStats->errorCode() . ' - ' . $addStats->errorInfo()[2]);
         }
+        return $success;
     }
 
     private function announceError($message)
     {
         return BEncode::build(array('failure reason' => $message));
+    }
+
+    private function checkStats($info_hash, $torrent_pass)
+    {
+        $torrentStmt = $this->dbc->prepare("SELECT SUM(bytes_downloaded) as download, SUM(bytes_uploaded) as upload FROM " . Config::get('db_prefix') . "Peer WHERE info_hash = :infohash AND torrent_pass = :torrentpass");
+        $torrentStmt->execute([
+            ':infohash' => $info_hash,
+            ':torrentpass' => $torrent_pass
+        ]);
+        if($torrent = $torrentStmt->fetchObject()){
+
+        }else{
+            return true;
+        }
     }
 }

@@ -1,9 +1,13 @@
+;<?php
+;die(); // For further security
+;/*
 [db]
 db_driver=mysql
 db_host=localhost
 db_name=tracker
 db_user=root
 db_password=
+db_prefix='tracker_'
 [tracker]
 numwant_max=100
 numwant_max_force=false
@@ -21,4 +25,9 @@ ratio_grace_time=24
 
 [misc]
 log_file=log.txt
+log_level=0
 time_format=Y-m-d H:i:s
+
+;*/
+
+;?>

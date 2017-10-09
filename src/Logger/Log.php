@@ -138,7 +138,9 @@ class Log implements LoggerInterface
     public function debug($message, array $context = array())
     {
         // TODO: Implement debug() method.
-        self::log(LogLevel::DEBUG, $message, $context);
+        if (Config::get('log_level') > 0){
+            self::log(LogLevel::DEBUG, $message, $context);
+        }
     }
 
     /**

@@ -93,7 +93,7 @@ ALTER TABLE `Peer`
 --
 -- Indexes for table `Torrent`
 --
-ALTER TABLE `Torrent`
+ALTER TABLE tracker_Torrent
   ADD PRIMARY KEY (`info_hash`);
 
 --
@@ -105,7 +105,7 @@ ALTER TABLE `Torrent_stats`
 --
 -- Indexes for table `User`
 --
-ALTER TABLE `User`
+ALTER TABLE tracker_User
   ADD PRIMARY KEY (`torrent_pass`);
 
 DELIMITER $$
@@ -118,14 +118,14 @@ FROM (SELECT
       Peer.info_hash, 
       COALESCE(SUM((CASE WHEN ((status = 'completed') OR (status = 'started' AND bytes_left = 0)) AND expires >= NOW() THEN 1 END)),0) as complete, 
       COALESCE(SUM((CASE WHEN (status = 'started' AND bytes_left > 0) AND expires >= NOW() THEN 1 END)), 0) as incomplete, 
-      Torrent.complete as downloaded 
+      tracker_Torrent.complete as downloaded
       FROM `Peer` 
-      LEFT JOIN Torrent ON Torrent.info_hash = Peer.info_hash
+      LEFT JOIN tracker_Torrent ON tracker_Torrent.info_hash = Peer.info_hash
       WHERE Peer.expires >= NOW() AND Peer.status != 'stopped'
       GROUP BY info_hash) as stats
 ON DUPLICATE KEY UPDATE complete = stats.complete, incomplete = stats.incomplete, downloaded = stats.downloaded$$
 
-CREATE DEFINER=`root`@`localhost` EVENT `user_stats` ON SCHEDULE EVERY 2 HOUR STARTS '2017-04-02 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO INSERT INTO User(torrent_pass, download, upload) SELECT torrent_pass, downloaded, uploaded FROM (SELECT torrent_pass, SUM(bytes_downloaded) as downloaded, SUM(bytes_uploaded) as uploaded FROM Peer WHERE Peer.torrent_pass != NULL GROUP BY Peer.torrent_pass) as stats
+CREATE DEFINER=`root`@`localhost` EVENT `user_stats` ON SCHEDULE EVERY 2 HOUR STARTS '2017-04-02 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO INSERT INTO tracker_User(torrent_pass, download, upload) SELECT torrent_pass, downloaded, uploaded FROM (SELECT torrent_pass, SUM(bytes_downloaded) as downloaded, SUM(bytes_uploaded) as uploaded FROM Peer WHERE Peer.torrent_pass != NULL GROUP BY Peer.torrent_pass) as stats
 ON DUPLICATE KEY UPDATE download = stats.downloaded, upload = stats.uploaded$$
 
 DELIMITER ;
