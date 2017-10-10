@@ -1,5 +1,6 @@
 ;<?php
-;die(); // For further security
+;// For further security
+;die(); 
 ;/*
 [db]
 db_driver=mysql
