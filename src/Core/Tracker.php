@@ -187,14 +187,16 @@ class Tracker
     public function scrape()
     {
         $response = "";
-        if (Config::get('full_scrape') && !isset($_GET['info_hash'])) {
-            Log::getDefaultLogger()->info($_SERVER['REMOTE_ADDR'] . " is performing a full scrape");
-            $response = BEncode::build($this->dbc->query("SELECT info_hash, seed, leech, complete FROM " . Config::get('db_prefix') . "Torrent", \PDO::FETCH_ASSOC));
-        } else {
-            Log::getDefaultLogger()->debug('scrapeing: ' . bin2hex($_GET['info_hash']));
-            $stats = $this->torrentStats($_GET['info_hash']);
+        if (Config::get('full_scrape') && !isset($_REQUEST['info_hash'])) {
+            Log::getDefaultLogger()->info(" is performing a full scrape");
+            $stmt = $this->dbc->prepare("SELECT info_hash, seed, leech, complete FROM " . Config::get('db_prefix') . "Torrent");
+            $stmt->execute();
+            $response = BEncode::build($stmt->fetchAll(\PDO::FETCH_ASSOC));
+        } elseif (isset($_REQUEST['info_hash'])) {
+            Log::getDefaultLogger()->debug('scrapeing: ' . bin2hex($_REQUEST['info_hash']));
+            $stats = $this->torrentStats($_REQUEST['info_hash']);
             Log::getDefaultLogger()->debug("Scrape stats: ", $stats);
-            $response = BEncode::build(['files' => [$_GET['info_hash'] => $stats]]);
+            $response = BEncode::build(['files' => [$_REQUEST['info_hash'] => $stats]]);
         }
         Log::getDefaultLogger()->debug($response);
         Log::getDefaultLogger()->debug("Scrape execution time: " . (microtime(true) - $_SERVER["REQUEST_TIME_FLOAT"]));

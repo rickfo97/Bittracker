@@ -1,7 +1,8 @@
 {
   "name": "rickfo97/bittracker",
   "type": "project",
-  "description" :"Bittorrent tracker ",
+  "description" :"Bittorrent tracker written in PHP",
+  "keywords": ["bittorrent", "tracker"],
   "authors": [
     {
       "name": "Rickardh Forslund",

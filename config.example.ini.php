@@ -23,6 +23,9 @@ full_scrape=false
 ratio_limit=false
 ratio_min_limit=0.5
 ratio_grace_time=24
+api=false
+api_force_https=true
+api_token=
 
 [misc]
 log_file=log.txt
