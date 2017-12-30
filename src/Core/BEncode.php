@@ -1,5 +1,5 @@
 <?php
-namespace Rickfo97\Bittracker\Core;
+namespace Rickfo\Bittracker\Core;
 
 class BEncode
 {

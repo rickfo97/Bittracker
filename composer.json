@@ -1,5 +1,5 @@
 {
-  "name": "rickfo97/bittracker",
+  "name": "rickfo/bittracker",
   "type": "project",
   "description" :"Bittorrent tracker written in PHP",
   "keywords": ["bittorrent", "tracker"],
@@ -17,7 +17,7 @@
   ],
   "autoload": {
     "psr-4": {
-      "Rickfo97\\Bittracker\\": "src"
+      "Rickfo\\Bittracker\\": "src"
     }
   },
   "require": {

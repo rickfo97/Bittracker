@@ -1,23 +1,30 @@
 <?php
-namespace Rickfo97\Bittracker\Logger;
+namespace Rickfo\Bittracker\Logger;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
-use Rickfo97\Bittracker\Core\Config;
 
 class Log implements LoggerInterface
 {
     protected static $instance;
+    private static $config = [];
+
     public static function getDefaultLogger(){
         if(is_null(self::$instance)){
             self::$instance = new Log();
         }
         return self::$instance;
     }
+
+    public static function setConfig($config){
+        foreach ($config as $setting => $value){
+            self::$config[$setting] = $value;
+        }
+    }
     //TODO: Add log level option so that eg. debug doesn't show up in production logs.
 
     private static function writeToLogFile($message)
     {
-        file_put_contents(Config::get('log_file'), utf8_encode(date(Config::get('time_format')) . ' ' . $message . "\n"), FILE_APPEND);
+        file_put_contents(self::$config['log_file'], utf8_encode(date(self::$config['time_format']) . ' ' . $message . "\n"), FILE_APPEND);
     }
 
     /**
@@ -138,7 +145,7 @@ class Log implements LoggerInterface
     public function debug($message, array $context = array())
     {
         // TODO: Implement debug() method.
-        if (Config::get('log_level') > 0){
+        if (self::$config['log_level'] > 0){
             self::log(LogLevel::DEBUG, $message, $context);
         }
     }
