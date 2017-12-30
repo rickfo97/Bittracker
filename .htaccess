@@ -1,9 +1,7 @@
 Options -Indexes
 RewriteEngine on
 
-RewriteRule ^generate index.php?action=generate [L,QSA]
 RewriteRule ^scrape index.php?action=scrape [L,QSA]
 RewriteRule ^announce index.php?action=announce [L,QSA]
 RewriteRule ^(.+)\/scrape index.php?action=scrape&torrent_pass=$1 [L,QSA]
 RewriteRule ^(.+)\/announce index.php?action=announce&torrent_pass=$1 [L,QSA]
-RewriteRule ^api\/(.+)\/(.+) index.php?action=api&target=$1&method=$2 [L,QSA]
