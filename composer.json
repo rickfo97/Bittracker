@@ -3,6 +3,8 @@
   "type": "project",
   "description" :"Bittorrent tracker written in PHP",
   "keywords": ["bittorrent", "tracker"],
+  "homepage": "https://github.com/rickfo97/Bittracker",
+  "license": "MIT",
   "authors": [
     {
       "name": "Rickardh Forslund",
