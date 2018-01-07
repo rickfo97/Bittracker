@@ -169,7 +169,7 @@ class Tracker
         }
 
         if ($this->config['save_stats'] && isset($request['torrent_pass'])){
-            $lastUpdateStmt = $this->dbc->prepare("INSERT INTO " . $this->config['db_prefix'] . "User(torrent_pass, download, upload) SELECT :passkey as torrent_pass, :download as download, :upload as upload FROM " . $this->config['db_prefix'] . "Peer peer WHERE info_hash = :hash AND peer_id = :peer ON DUPLICATE KEY UPDATE download = (download + (:download - bytes_downloaded)), upload = (upload + (:upload - bytes_uploaded))");
+            $lastUpdateStmt = $this->dbc->prepare("INSERT INTO " . $this->config['db_prefix'] . "User(torrent_pass, download, upload) SELECT :passkey as torrent_pass, IF(free_leech, :download, 0) as download, :upload as upload FROM " . $this->config['db_prefix'] . "Peer LEFT JOIN " . $this->config['db_prefix'] . "Torrent ON " . $this->config['db_prefix'] . "Peer.info_hash = " . $this->config['db_prefix'] . "Torrent.info_hash WHERE " . $this->config['db_prefix'] . "Peer.info_hash = :hash AND peer_id = :peer ON DUPLICATE KEY UPDATE download = IF(free_leech, download, (download + (:download - bytes_downloaded))), upload = (upload + (:upload - bytes_uploaded))");
             $success = $lastUpdateStmt->execute([
                 ':passkey' => $request['torrent_pass'],
                 ':download' => $request['downloaded'],
