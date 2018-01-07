@@ -3,11 +3,14 @@
 namespace Rickfo\Bittracker\Core;
 
 use Rickfo\Bittracker\Logger\Log;
+use Psr\Log\LoggerInterface;
 
 class Tracker
 {
 
     private $dbc;
+
+    private $logger;
 
     private $config = [
         'db_driver' => 'mysql',
@@ -31,24 +34,18 @@ class Tracker
         'ratio_min_limit' => 0.5,
         // In hours
         'ratio_grace_time' => 24,
-
-        'log_file' => 'log.txt',
-        'log_level' => 0,
-        'time_format' => 'Y-m-d H:i:s'
     ];
 
-    public function __construct($settings = [])
+    public function __construct(LoggerInterface $logger, $settings = [])
     {
         if (sizeof($settings) > 0) {
             foreach ($settings as $setting => $value) {
                 $this->config[$setting] = $value;
             }
         }
-        Log::setConfig([
-            'log_file' => $this->config['log_file'],
-            'log_level' => $this->config['log_level'],
-            'time_format' => $this->config['time_format']
-        ]);
+
+        $this->logger = $logger;
+
         $this->dbc = new Database(
             $this->config['db_driver'],
             $this->config['db_host'],
@@ -58,12 +55,12 @@ class Tracker
         );
     }
 
-    public function announce($passkey = '')
+    public function announce($passkey = null)
     {
-        Log::getDefaultLogger()->debug('announcing ' . bin2hex($_GET['info_hash']));
+        $this->logger->debug('announcing ' . bin2hex($_GET['info_hash']));
 
         if ($_SERVER['REQUEST_METHOD'] != 'GET') {
-            Log::getDefaultLogger()->error('request method was not GET');
+            $this->logger->error('request method was not GET');
             return $this->announceError('Invalid request type: client request was not a HTTP GET.');
         }
 
@@ -88,50 +85,50 @@ class Tracker
             'torrent_pass' => $passkey
         );
         if (!isset($request['info_hash'])) {
-            Log::getDefaultLogger()->error('missing info_hash');
+            $this->logger->error('missing info_hash');
             return $this->announceError('Missing info_hash.');
         }
         if (!isset($request['peer_id'])) {
-            Log::getDefaultLogger()->error('missing peer_id');
+            $this->logger->error('missing peer_id');
             return $this->announceError('Missing peer_id.');
         }
         if (!isset($request['port'])) {
-            Log::getDefaultLogger()->error('missing port');
+            $this->logger->error('missing port');
             return $this->announceError('Missing port.');
         }
         if (strlen($request['info_hash']) != 20) {
-            Log::getDefaultLogger()->error('sent invalid info_hash: ' . $request['info_hash']);
+            $this->logger->error('sent invalid info_hash: ' . $request['info_hash']);
             return $this->announceError('Invalid infohash: infohash is not 20 bytes long.');
         }
         if (strlen($request['peer_id']) != 20) {
-            Log::getDefaultLogger()->error('sent invalid peer_id: ' . $request['peer_id']);
+            $this->logger->error('sent invalid peer_id: ' . $request['peer_id']);
             return $this->announceError('Invalid peerid: peerid is not 20 bytes long.');
         }
         if (intval($request['numwant']) > $this->config['numwant_max']) {
             if ($this->config['numwant_max_force']) {
-                Log::getDefaultLogger()->error('sent invalid numwant: ' . $request['numwant']);
+                $this->logger->error('sent invalid numwant: ' . $request['numwant']);
                 return $this->announceError('Invalid numwant. Client requested more peers than allowed by tracker.');
             } else {
-                Log::getDefaultLogger()->warning('sent invalid numwant: ' . $request['numwant']);
+                $this->logger->warning('sent invalid numwant: ' . $request['numwant']);
                 $request['numwant'] = $this->config['numwant_max'];
             }
         }
         if ($this->config['private']) {
             if (!isset($request['torrent_pass']) || strlen($request['torrent_pass']) == 0) {
-                Log::getDefaultLogger()->debug("Not a member of tracker: " . $request['torrent_pass']);
+                $this->logger->debug("Not a member of tracker: " . $request['torrent_pass']);
                 return $this->announceError("Not a member of tracker");
             } else {
                 $member = $this->dbc->prepare("SELECT *FROM $this->config['db_prefix']User WHERE torrent_pass = :torrent_pass");
                 $member->execute([':torrent_pass' => $request['torrent_pass']]);
                 if ($member->rowCount() != 1) {
-                    Log::getDefaultLogger()->debug("Not a member of tracker: " . $request['torrent_pass']);
+                    $this->logger->debug("Not a member of tracker: " . $request['torrent_pass']);
                     return $this->announceError("Not a member of tracker");
                 }
             }
         }
         if (!$this->config['auto_track']) {
             if (!$this->torrentExists($request['info_hash'])) {
-                Log::getDefaultLogger()->error('auto_track is false');
+                $this->logger->error('auto_track is false');
                 return $this->announceError('info_hash not found in the database.');
             }
         }
@@ -146,15 +143,15 @@ class Tracker
             }
             if ($ratio_stmt->rowCount() == 1) {
                 $user = $ratio_stmt->fetchObject();
-                Log::getDefaultLogger()->debug("Ratio: " . $user->ratio);
+                $this->logger->debug("Ratio: " . $user->ratio);
                 if (($user->ratio < $this->config['ratio_min_limit'] && $user->ratio != -1) && (strtotime($user->created) + ($this->config['ratio_grace_time'] * 3600)) < (time())) {
                     return $this->announceError("Ratio is to low");
                 }
             } else {
                 if (isset($request['torrent_pass'])) {
-                    Log::getDefaultLogger()->warning('Torrent_pass not in database');
+                    $this->logger->warning('Torrent_pass not in database');
                 } elseif ($this->config['private']) {
-                    Log::getDefaultLogger()->error($_SERVER['REMOTE_ADDR'] . ' tried to announce without torrent_pass');
+                    $this->logger->error($_SERVER['REMOTE_ADDR'] . ' tried to announce without torrent_pass');
                     return $this->announceError("Not part of tracker");
                 }
             }
@@ -166,9 +163,25 @@ class Tracker
                 ':peer_id' => $request['peer_id']
             ]);
             if (!$success) {
-                Log::getDefaultLogger()->error('Failed to remove peer: ' . $removeStmt->errorCode() . ' - ' . $removeStmt->errorInfo()[2]);
+                $this->logger->error('Failed to remove peer: ' . $removeStmt->errorCode() . ' - ' . $removeStmt->errorInfo()[2]);
             }
             die();
+        }
+
+        if ($this->config['save_stats'] && isset($request['torrent_pass'])){
+            $lastUpdateStmt = $this->dbc->prepare("INSERT INTO " . $this->config['db_prefix'] . "User(torrent_pass, download, upload) SELECT :passkey as torrent_pass, :download as download, :upload as upload FROM " . $this->config['db_prefix'] . "Peer peer WHERE info_hash = :hash AND peer_id = :peer ON DUPLICATE KEY UPDATE download = (download + (:download - bytes_downloaded)), upload = (upload + (:upload - bytes_uploaded))");
+            $success = $lastUpdateStmt->execute([
+                ':passkey' => $request['torrent_pass'],
+                ':download' => $request['downloaded'],
+                ':upload' => $request['uploaded'],
+                ':hash' => $request['info_hash'],
+                ':peer' => $request['peer_id']
+            ]);
+            if($lastUpdateStmt->rowCount() > 0){
+                $this->logger->debug("Updated user stat for " . $request['torrent_pass']);
+            }else{
+                $this->logger->warning("Failed to update user stat for " . $request['torrent_pass']);
+            }
         }
 
         $peerAddSQL = "INSERT INTO `" . $this->config['db_prefix'] . "Peer`(`info_hash`, `peer_id`, `ip`, `port`, compact, `bytes_downloaded`, `bytes_uploaded`, `bytes_left`, status, expires, torrent_pass) VALUES (:info_hash, :peer_id, :ip, :port, :compact, :downloaded, :uploaded, :bytes_left, IFNULL(:status, DEFAULT(status)), DATE_ADD(NOW(), INTERVAL " . $this->config['expire_interval'] . "), :torrent_pass) ON DUPLICATE KEY UPDATE ip = :ip, port = :port, compact = :compact, `bytes_downloaded` = :downloaded, `bytes_uploaded` = :uploaded, `bytes_left` = :bytes_left, status = " . (isset($request['event']) == true ? ':status' : 'status') . ", `expires` = DATE_ADD(NOW(), INTERVAL " . $this->config['expire_interval'] . "), torrent_pass = :torrent_pass";
@@ -188,25 +201,25 @@ class Tracker
         $peerAdd = $this->dbc->prepare($peerAddSQL);
         $result = $peerAdd->execute($peerAddParams);
         if (!$result) {
-            Log::getDefaultLogger()->warning("Failed to add peer: " . $peerAdd->errorCode() . ' - ' . $peerAdd->errorInfo()[2]);
-            Log::getDefaultLogger()->debug($peerAddSQL);
-            Log::getDefaultLogger()->debug('ip: ' . $request['ip'] . '; port: ' . $request['port'] . '; downloaded: ' . $request['downloaded'] . '; uploaded: ' . $request['uploaded'] . '; bytes_left: ' . $request['left'] . '; event: ' . $request['event']);
+            $this->logger->warning("Failed to add peer: " . $peerAdd->errorCode() . ' - ' . $peerAdd->errorInfo()[2]);
+            $this->logger->debug($peerAddSQL);
+            $this->logger->debug('ip: ' . $request['ip'] . '; port: ' . $request['port'] . '; downloaded: ' . $request['downloaded'] . '; uploaded: ' . $request['uploaded'] . '; bytes_left: ' . $request['left'] . '; event: ' . $request['event']);
         }
 
         if ($request[':status'] == 'finished') {
             $downloadStmt = $this->dbc->prepare("INSERT INTO " . $this->config['db_prefix'] . "Torrent(info_hash, complete) VALUES(:info_hash, 1) ON DUPLICATE KEY UPDATE complete = (complete + 1)");
             $result = $downloadStmt->execute([':info_hash' => $request['info_hash']]);
             if (!$result) {
-                Log::getDefaultLogger()->error("Failed to add completed downloads");
+                $this->logger->error("Failed to add completed downloads");
             }
         }
 
-        $peerSQL = "SELECT " . (!$request['no_peer_id'] ? "peer_id as id, " : '') . "ip, port, compact FROM `" . $this->config['db_prefix'] . "Peer` WHERE info_hash = :info_hash AND status != 'stopped' AND expires >= NOW() LIMIT " . $request['numwant'];
+        $peerSQL = "SELECT " . (!$request['no_peer_id'] ? "peer_id as id, " : '') . "ip, port, compact FROM " . $this->config['db_prefix'] . "Peer WHERE info_hash = :info_hash AND status != 'stopped' AND expires >= NOW() LIMIT " . $request['numwant'];
         $peerStmt = $this->dbc->prepare($peerSQL);
-        $peerResult = $peerStmt->execute(array(':info_hash' => $request['info_hash'], ':peer_id' => $request['peer_id']));
+        $peerResult = $peerStmt->execute(array(':info_hash' => $request['info_hash']));
         if (!$peerResult) {
-            Log::getDefaultLogger()->warning('Failed to fetch peers: ' . $peerStmt->errorCode() . ' - ' . $peerStmt->errorInfo()[2]);
-            Log::getDefaultLogger()->error($peerSQL);
+            $this->logger->warning('Failed to fetch peers: ' . $peerStmt->errorCode() . ' - ' . $peerStmt->errorInfo()[2]);
+            $this->logger->error($peerSQL);
         }
 
         $response = array('interval' => $this->config['announce_interval'], 'min interval' => $this->config['announce_interval_min']);
@@ -221,8 +234,8 @@ class Tracker
         }
         $response = array_merge($response, $this->torrentStats($request['info_hash']));
         $bResponse = BEncode::build($response);
-        Log::getDefaultLogger()->debug('Announce response: ' . $bResponse);
-        Log::getDefaultLogger()->debug("Announce execution time: " . (microtime(true) - $_SERVER["REQUEST_TIME_FLOAT"]));
+        $this->logger->debug('Announce response: ' . $bResponse);
+        $this->logger->debug("Announce execution time: " . (microtime(true) - $_SERVER["REQUEST_TIME_FLOAT"]));
         return $bResponse;
     }
 
@@ -261,7 +274,7 @@ class Tracker
             $result->execute([':info_hash' => $info_hash]);
             $stats = $result->fetch(\PDO::FETCH_ASSOC);
         }
-        Log::getDefaultLogger()->debug("Torrent stats: " . $stats[0] . " : " . $stats[1]);
+        $this->logger->debug("Torrent stats: " . $stats[0] . " : " . $stats[1]);
         return array('complete' => intval($stats['seed']), 'incomplete' => intval($stats['leech']));
     }
 
@@ -277,7 +290,7 @@ class Tracker
             ':info_hash' => $info_hash
         ]);
         if (!$success) {
-            Log::getDefaultLogger()->error("Failed to add torrent stats: " . $addStats->errorCode() . ' - ' . $addStats->errorInfo()[2]);
+            $this->logger->error("Failed to add torrent stats: " . $addStats->errorCode() . ' - ' . $addStats->errorInfo()[2]);
         }
         return $success;
     }
@@ -286,18 +299,18 @@ class Tracker
     {
         $response = "";
         if ($this->config['full_scrape'] && !isset($_REQUEST['info_hash'])) {
-            Log::getDefaultLogger()->info(" is performing a full scrape");
+            $this->logger->info(" is performing a full scrape");
             $stmt = $this->dbc->prepare("SELECT info_hash, seed, leech, complete FROM " . $this->config['db_prefix'] . "Torrent");
             $stmt->execute();
             $response = BEncode::build($stmt->fetchAll(\PDO::FETCH_ASSOC));
         } elseif (isset($_REQUEST['info_hash'])) {
-            Log::getDefaultLogger()->debug('scrapeing: ' . bin2hex($_REQUEST['info_hash']));
+            $this->logger->debug('scrapeing: ' . bin2hex($_REQUEST['info_hash']));
             $stats = $this->torrentStats($_REQUEST['info_hash']);
-            Log::getDefaultLogger()->debug("Scrape stats: ", $stats);
+            $this->logger->debug("Scrape stats: ", $stats);
             $response = BEncode::build(['files' => [$_REQUEST['info_hash'] => $stats]]);
         }
-        Log::getDefaultLogger()->debug($response);
-        Log::getDefaultLogger()->debug("Scrape execution time: " . (microtime(true) - $_SERVER["REQUEST_TIME_FLOAT"]));
+        $this->logger->debug($response);
+        $this->logger->debug("Scrape execution time: " . (microtime(true) - $_SERVER["REQUEST_TIME_FLOAT"]));
         return $response;
     }
 
@@ -318,11 +331,6 @@ class Tracker
 
     public function updateAllTorrents(){
         $stmt = $this->dbc->prepare("INSERT INTO " . $this->config['db_prefix'] . "Torrent(info_hash, seed, leech) SELECT stats.info_hash, stats.complete, stats.incomplete FROM (SELECT " . $this->config['db_prefix'] . "Peer.info_hash, COALESCE(SUM((CASE WHEN ((status = 'completed') OR (status = 'started' AND bytes_left = 0)) AND expires >= NOW() THEN 1 END)),0) as complete, COALESCE(SUM((CASE WHEN (status = 'started' AND bytes_left > 0) AND expires >= NOW() THEN 1 END)), 0) as incomplete FROM `" . $this->config['db_prefix'] . "['db_prefix']Peer` WHERE " . $this->config['db_prefix'] . "Peer.expires >= NOW() AND " . $this->config['db_prefix'] . "Peer.status != 'stopped' GROUP BY info_hash) as stats ON DUPLICATE KEY UPDATE seed = stats.complete, leech = stats.incomplete");
-        return $stmt->execute();
-    }
-
-    public function updateAllUsers(){
-        $stmt = $this->dbc->prepare("INSERT INTO " . $this->config['db_prefix'] . "User(torrent_pass, download, upload) SELECT torrent_pass, downloaded, uploaded FROM (SELECT torrent_pass, SUM(bytes_downloaded) as downloaded, SUM(bytes_uploaded) as uploaded FROM " . $this->config['db_prefix'] . "Peer WHERE " . $this->config['db_prefix'] . "Peer.torrent_pass IS NOT NULL GROUP BY " . $this->config['db_prefix'] . "Peer.torrent_pass) as stats ON DUPLICATE KEY UPDATE download = stats.downloaded, upload = stats.uploaded");
         return $stmt->execute();
     }
 }
